@@ -1,6 +1,6 @@
 # HackerOne MCP Server
 
-An MCP (Model Context Protocol) server that connects Claude to the HackerOne Hackers API.
+An MCP (Model Context Protocol) server that connects Claude, Claude codex and other mcp clients to the HackerOne Hackers API.
 
 ## Tools Available
 

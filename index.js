@@ -9,13 +9,30 @@ import {
 
 const H1_API_BASE = "https://api.hackerone.com/v1";
 
+function normalizeCredential(value) {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+
+  // Tolerate quoted env values from JSON/yaml configs.
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+
+  return trimmed;
+}
+
 function getAuth() {
-  const username = process.env.HACKERONE_USERNAME;
-  const token = process.env.HACKERONE_API_TOKEN;
+  const username = normalizeCredential(
+    process.env.HACKERONE_API_USERNAME ?? process.env.HACKERONE_USERNAME
+  );
+  const token = normalizeCredential(process.env.HACKERONE_API_TOKEN);
 
   if (!username || !token) {
     throw new Error(
-      "Missing HACKERONE_USERNAME or HACKERONE_API_TOKEN environment variables"
+      "Missing HACKERONE_API_USERNAME (or HACKERONE_USERNAME) and HACKERONE_API_TOKEN environment variables"
     );
   }
 
@@ -38,6 +55,13 @@ async function h1Request(path, params = {}) {
 
   if (!res.ok) {
     const err = await res.text();
+
+    if (res.status === 401) {
+      throw new Error(
+        "HackerOne API error 401: Unauthorized. Verify the MCP process is using the same HACKERONE_API_USERNAME (or HACKERONE_USERNAME) and HACKERONE_API_TOKEN as your curl command. HackerOne expects the API token identifier as the username. Restart the MCP client after credential updates."
+      );
+    }
+
     throw new Error(`HackerOne API error ${res.status}: ${err}`);
   }
 
@@ -169,7 +193,7 @@ async function handleListReports(args) {
   if (args.page_size) params["page[size]"] = Math.min(args.page_size, 100);
   if (args.sort) params["sort"] = args.sort;
 
-  const data = await h1Request("/hackers/reports", params);
+  const data = await h1Request("/hackers/me/reports", params);
 
   const reports = (data.data || []).map((r) => ({
     id: r.id,

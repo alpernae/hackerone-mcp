@@ -47,7 +47,7 @@ Edit your Claude Desktop config file:
       "command": "node",
       "args": ["/absolute/path/to/hackerone-mcp/index.js"],
       "env": {
-        "HACKERONE_USERNAME": "your_h1_username",
+        "HACKERONE_API_USERNAME": "your_api_token_identifier",
         "HACKERONE_API_TOKEN": "your_api_token"
       }
     }
@@ -65,7 +65,7 @@ Run once to add the MCP server to your Claude Code config:
 
 ```bash
 claude mcp add hackerone \
-  -e HACKERONE_USERNAME=your_h1_username \
+  -e HACKERONE_API_USERNAME=your_api_token_identifier \
   -e HACKERONE_API_TOKEN=your_api_token \
   -- node /absolute/path/to/hackerone-mcp/index.js
 ```
@@ -73,7 +73,7 @@ claude mcp add hackerone \
 Or set credentials as shell environment variables first:
 
 ```bash
-export HACKERONE_USERNAME=your_h1_username
+export HACKERONE_API_USERNAME=your_api_token_identifier
 export HACKERONE_API_TOKEN=your_api_token
 
 claude mcp add hackerone -- node /absolute/path/to/hackerone-mcp/index.js
@@ -91,7 +91,7 @@ claude mcp list
 Pass the environment variables when launching:
 
 ```bash
-HACKERONE_USERNAME=your_h1_username \
+HACKERONE_API_USERNAME=your_api_token_identifier \
 HACKERONE_API_TOKEN=your_api_token \
 node /path/to/hackerone-mcp/index.js
 ```
@@ -99,7 +99,7 @@ node /path/to/hackerone-mcp/index.js
 Or configure your client's MCP settings with:
 - **command:** `node`
 - **args:** `["/path/to/hackerone-mcp/index.js"]`
-- **env:** `{ "HACKERONE_USERNAME": "...", "HACKERONE_API_TOKEN": "..." }`
+- **env:** `{ "HACKERONE_API_USERNAME": "...", "HACKERONE_API_TOKEN": "..." }`
 
 ---
 

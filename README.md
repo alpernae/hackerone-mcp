@@ -1,6 +1,6 @@
 # HackerOne MCP Server
 
-An MCP (Model Context Protocol) server that connects Claude, Claude codex and other mcp clients to the HackerOne Hackers API.
+An MCP (Model Context Protocol) server that connects Claude, Codex, and other MCP clients to the HackerOne Hackers API.
 
 ## Tools Available
 
@@ -86,6 +86,42 @@ claude mcp list
 
 ---
 
+### Codex CLI
+
+Run once to add the MCP server to Codex:
+
+```bash
+codex mcp add hackerone \
+  --env HACKERONE_API_USERNAME=your_api_token_identifier \
+  --env HACKERONE_API_TOKEN=your_api_token \
+  -- node /absolute/path/to/hackerone-mcp/index.js
+```
+
+Or configure it directly in `config.toml`:
+
+- **macOS/Linux:** `~/.codex/config.toml`
+- **Windows:** `%USERPROFILE%\.codex\config.toml`
+
+```toml
+[mcp_servers.hackerone]
+command = "node"
+args = ["/absolute/path/to/hackerone-mcp/index.js"]
+
+[mcp_servers.hackerone.env]
+HACKERONE_API_USERNAME = "your_api_token_identifier"
+HACKERONE_API_TOKEN = "your_api_token"
+```
+
+Verify it's registered:
+
+```bash
+codex mcp list
+```
+
+In Codex TUI, run `/mcp` to view active MCP servers.
+
+---
+
 ### Other MCP Clients (generic stdio)
 
 Pass the environment variables when launching:
@@ -105,7 +141,7 @@ Or configure your client's MCP settings with:
 
 ## Example prompts
 
-Once connected, you can ask Claude things like:
+Once connected, you can ask your MCP client (Claude, Codex, etc.) things like:
 
 - *"List my open HackerOne reports"*
 - *"Show me all critical severity reports"*

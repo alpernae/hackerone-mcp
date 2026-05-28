@@ -157,3 +157,14 @@ Once connected, you can ask your MCP client (Claude, Codex, etc.) things like:
 - **Never hardcode** your API token in the source files
 - Always use environment variables or your client's secrets manager
 - Your API token provides full access to your HackerOne account — treat it like a password
+
+---
+
+## Reliability settings (optional)
+
+If you see intermittent failures (timeouts, 429 rate limits, transient 5xx), you can tune these environment variables:
+
+- `HACKERONE_TIMEOUT_MS` (default: `20000`) — per-request timeout
+- `HACKERONE_MAX_RETRIES` (default: `2`) — retries for 429/5xx and transient network errors
+- `HACKERONE_RETRY_BASE_DELAY_MS` (default: `400`) — initial backoff delay
+- `HACKERONE_RETRY_MAX_DELAY_MS` (default: `4000`) — maximum backoff delay

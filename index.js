@@ -9,6 +9,128 @@ import {
 
 const H1_API_BASE = "https://api.hackerone.com/v1";
 
+const DEFAULT_TIMEOUT_MS = Number.parseInt(
+  process.env.HACKERONE_TIMEOUT_MS ?? process.env.H1_TIMEOUT_MS ?? "20000",
+  10
+);
+const DEFAULT_MAX_RETRIES = Number.parseInt(
+  process.env.HACKERONE_MAX_RETRIES ?? process.env.H1_MAX_RETRIES ?? "2",
+  10
+);
+const DEFAULT_RETRY_BASE_DELAY_MS = Number.parseInt(
+  process.env.HACKERONE_RETRY_BASE_DELAY_MS ?? "400",
+  10
+);
+const DEFAULT_RETRY_MAX_DELAY_MS = Number.parseInt(
+  process.env.HACKERONE_RETRY_MAX_DELAY_MS ?? "4000",
+  10
+);
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(Math.max(value, min), max);
+}
+
+function getTimeoutMs() {
+  return clampNumber(DEFAULT_TIMEOUT_MS, 1000, 120000);
+}
+
+function getMaxRetries() {
+  return clampNumber(DEFAULT_MAX_RETRIES, 0, 6);
+}
+
+function truncateText(text, maxLen) {
+  if (typeof text !== "string") return "";
+  if (text.length <= maxLen) return text;
+  return `${text.slice(0, maxLen)}\n…(truncated ${text.length - maxLen} chars)`;
+}
+
+function parseRetryAfterMs(value) {
+  if (!value) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+
+  // Numeric seconds per RFC 9110.
+  const seconds = Number.parseInt(raw, 10);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+
+  // HTTP date.
+  const dateMs = Date.parse(raw);
+  if (!Number.isNaN(dateMs)) {
+    const delta = dateMs - Date.now();
+    return delta > 0 ? delta : 0;
+  }
+
+  return null;
+}
+
+function isRetryableStatus(status) {
+  return (
+    status === 408 ||
+    status === 425 ||
+    status === 429 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
+}
+
+function isRetryableFetchError(err) {
+  // Node fetch typically throws TypeError('fetch failed') with a nested cause.
+  const name = err?.name;
+  if (name === "AbortError") return true;
+
+  const code = err?.cause?.code ?? err?.code;
+  return (
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "EAI_AGAIN" ||
+    code === "ENOTFOUND" ||
+    code === "ECONNREFUSED" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "UND_ERR_HEADERS_TIMEOUT" ||
+    code === "UND_ERR_BODY_TIMEOUT"
+  );
+}
+
+function computeBackoffDelayMs(attempt) {
+  const base = clampNumber(DEFAULT_RETRY_BASE_DELAY_MS, 50, 30000);
+  const max = clampNumber(DEFAULT_RETRY_MAX_DELAY_MS, base, 60000);
+  const exp = Math.min(max, base * 2 ** attempt);
+  const jitter = Math.floor(Math.random() * Math.min(250, exp));
+  return Math.min(max, exp + jitter);
+}
+
+function getHeader(headers, name) {
+  if (!headers) return null;
+  for (const [k, v] of headers.entries()) {
+    if (k.toLowerCase() === name.toLowerCase()) return v;
+  }
+  return null;
+}
+
+function formatH1HttpError({ status, url, body, headers }) {
+  const requestId =
+    getHeader(headers, "x-request-id") ??
+    getHeader(headers, "x-amzn-requestid") ??
+    getHeader(headers, "x-amz-request-id");
+  const retryAfter = getHeader(headers, "retry-after");
+
+  const parts = [`HackerOne API error ${status}`];
+  if (url) parts.push(url);
+  if (requestId) parts.push(`request_id=${requestId}`);
+  if (retryAfter) parts.push(`retry_after=${retryAfter}`);
+
+  const prefix = parts.join(" | ");
+  const bodySnippet = truncateText(body, 3000);
+  return bodySnippet ? `${prefix}\n${bodySnippet}` : prefix;
+}
+
 function normalizeCredential(value) {
   if (typeof value !== "string") return "";
   const trimmed = value.trim();
@@ -45,16 +167,51 @@ async function h1Request(path, params = {}) {
     if (v !== undefined && v !== null) url.searchParams.set(k, v);
   });
 
-  const res = await fetch(url.toString(), {
-    headers: {
-      Authorization: `Basic ${getAuth()}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-  });
+  const maxRetries = getMaxRetries();
+  const timeoutMs = getTimeoutMs();
+  const urlString = url.toString();
 
-  if (!res.ok) {
-    const err = await res.text();
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    let res;
+    try {
+      res = await fetch(urlString, {
+        headers: {
+          Authorization: `Basic ${getAuth()}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "User-Agent": "hackerone-mcp/1.0.0",
+        },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      clearTimeout(timeoutId);
+
+      const canRetry = attempt < maxRetries && isRetryableFetchError(err);
+      if (canRetry) {
+        const delayMs = computeBackoffDelayMs(attempt);
+        await sleep(delayMs);
+        continue;
+      }
+
+      const msg = err?.message ? String(err.message) : String(err);
+      throw new Error(
+        `HackerOne API request failed${
+          attempt ? ` (after ${attempt + 1} attempts)` : ""
+        }: ${msg}`
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (res.ok) {
+      return res.json();
+    }
+
+    const bodyText = await res.text();
+    const shouldRetry = attempt < maxRetries && isRetryableStatus(res.status);
 
     if (res.status === 401) {
       throw new Error(
@@ -62,10 +219,27 @@ async function h1Request(path, params = {}) {
       );
     }
 
-    throw new Error(`HackerOne API error ${res.status}: ${err}`);
+    if (shouldRetry) {
+      const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after"));
+      const delayMs =
+        retryAfterMs !== null
+          ? clampNumber(retryAfterMs, 0, 10000)
+          : computeBackoffDelayMs(attempt);
+      await sleep(delayMs);
+      continue;
+    }
+
+    throw new Error(
+      formatH1HttpError({
+        status: res.status,
+        url: urlString,
+        body: bodyText,
+        headers: res.headers,
+      })
+    );
   }
 
-  return res.json();
+  throw new Error("HackerOne API request failed: exhausted retries");
 }
 
 // ── Tool definitions ──────────────────────────────────────────────────────────

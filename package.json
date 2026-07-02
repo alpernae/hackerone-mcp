@@ -1,7 +1,7 @@
 {
   "name": "hackerone-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for HackerOne Hackers API — reports, program scopes, and program details",
+  "version": "2.0.0",
+  "description": "MCP server for the HackerOne Hacker API",
   "type": "module",
   "main": "index.js",
   "bin": {
@@ -11,7 +11,7 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0"
+    "@modelcontextprotocol/sdk": "1.27.1"
   },
   "engines": {
     "node": ">=18.0.0"

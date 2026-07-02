@@ -4,13 +4,13 @@ An MCP (Model Context Protocol) server that connects Claude, Codex, and other MC
 
 ## Tools Available
 
-| Tool | Description |
-|------|-------------|
-| `h1_list_reports` | List your reports, filterable by program, state, severity, page |
-| `h1_get_report` | Get full details of a specific report by ID |
-| `h1_get_program_scopes` | Get in-scope and out-of-scope assets for a program |
-| `h1_get_program` | Get program details (policy, bounties, response stats) |
-| `h1_list_programs` | List programs you have access to |
+21 tools cover the complete documented Hacker API surface:
+
+- Hacktivity search
+- Reports: list, get, and create
+- Payments: balance, earnings, and payouts
+- Programs: list, get, structured scopes, scope exclusions, and weaknesses
+- Report intents: list, get, create, update, delete, submit, and attachment management
 
 ---
 
@@ -143,8 +143,8 @@ Or configure your client's MCP settings with:
 
 Once connected, you can ask your MCP client (Claude, Codex, etc.) things like:
 
-- *"List my open HackerOne reports"*
-- *"Show me all critical severity reports"*
+- *"List my HackerOne reports"*
+- *"Search Hacktivity for disclosed critical reports"*
 - *"Get the full details of report 12345"*
 - *"What's in scope for the nodejs program?"*
 - *"Show me the policy and bounty info for the security program"*
@@ -166,5 +166,4 @@ If you see intermittent failures (timeouts, 429 rate limits, transient 5xx), you
 
 - `HACKERONE_TIMEOUT_MS` (default: `20000`) — per-request timeout
 - `HACKERONE_MAX_RETRIES` (default: `2`) — retries for 429/5xx and transient network errors
-- `HACKERONE_RETRY_BASE_DELAY_MS` (default: `400`) — initial backoff delay
-- `HACKERONE_RETRY_MAX_DELAY_MS` (default: `4000`) — maximum backoff delay
+- `HACKERONE_API_BASE` (default: `https://api.hackerone.com/v1`) — API base URL
